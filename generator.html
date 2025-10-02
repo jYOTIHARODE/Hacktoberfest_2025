@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Password Generator</title>
+  <style>
+    :root{
+      --bg:#f4f6f8;
+      --card:#ffffff;
+      --accent:#2563eb;
+      --muted:#6b7280;
+      --success:#16a34a;
+      --danger:#ef4444;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--bg);color:#0f1724;display:flex;align-items:center;justify-content:center;height:100vh;padding:20px}
+    .card{width:100%;max-width:560px;background:var(--card);padding:22px;border-radius:12px;box-shadow:0 8px 30px rgba(20,30,50,0.08)}
+    h1{margin:0 0 8px;font-size:1.25rem}
+    p.sub{margin:0 0 18px;color:var(--muted);font-size:0.95rem}
+    .row{display:flex;gap:10px;align-items:center}
+    .controls{display:grid;grid-template-columns:1fr 90px;gap:10px;margin-bottom:12px}
+    input[type="range"]{width:100%}
+    label{display:flex;align-items:center;gap:8px;font-size:0.95rem;color:var(--muted)}
+    .checkboxes{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}
+    .checkboxes label{background:#f8fafc;padding:8px 10px;border-radius:8px;border:1px solid rgba(15,23,36,0.04);cursor:pointer}
+    .output{display:flex;gap:8px;align-items:center;margin-bottom:12px}
+    .password{flex:1;padding:12px;border-radius:8px;background:#0f1724;color:white;font-weight:600;letter-spacing:0.6px;overflow:auto}
+    .btn{background:var(--accent);color:white;padding:10px 12px;border-radius:8px;border:0;cursor:pointer;font-weight:600}
+    .btn.secondary{background:transparent;color:var(--accent);border:1px solid rgba(37,99,235,0.12)}
+    .muted{color:var(--muted);font-size:0.9rem}
+    .meter-wrap{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+    meter{width:100%;height:14px;border-radius:8px}
+    .small{font-size:0.85rem;color:var(--muted)}
+    footer{margin-top:8px;text-align:center;color:var(--muted);font-size:0.85rem}
+    @media (max-width:520px){.controls{grid-template-columns:1fr 84px}}
+  </style>
+</head>
+<body>
+  <div class="card" role="region" aria-labelledby="title">
+    <h1 id="title">Password Generator</h1>
+    <p class="sub">Create strong, random passwords. Choose length and character sets, then click <strong>Generate</strong>.</p>
+
+    <div class="controls" aria-hidden="false">
+      <div>
+        <label for="length" class="small">Length: <span id="length-val">12</span></label>
+        <input id="length" type="range" min="4" max="64" value="12" />
+      </div>
+      <div class="row" style="justify-content:flex-end">
+        <button id="generate" class="btn" aria-label="Generate password">Generate</button>
+      </div>
+    </div>
+
+    <div class="checkboxes" role="group" aria-label="Character options">
+      <label><input id="lower" type="checkbox" checked /> Lowercase</label>
+      <label><input id="upper" type="checkbox" checked /> Uppercase</label>
+      <label><input id="numbers" type="checkbox" checked /> Numbers</label>
+      <label><input id="symbols" type="checkbox" /> Symbols</label>
+    </div>
+
+    <div class="output" aria-live="polite">
+      <div id="password" class="password" tabindex="0" aria-label="Generated password">—</div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <button id="copy" class="btn secondary" title="Copy password">Copy</button>
+      </div>
+    </div>
+
+    <div class="meter-wrap">
+      <meter id="strength-meter" min="0" max="4" low="1" high="3" optimum="4" value="0"></meter>
+      <div id="strength-text" class="small">Strength: —</div>
+    </div>
+
+    <div class="muted small">
+      Tip: Use long (~12+) unique passwords. Store them in a password manager.
+    </div>
+
+    <footer>Built with ♥ — simple client-side generator</footer>
+  </div>
+
+  <script>
+    // Character sets
+    const SETS = {
+      lower: 'abcdefghijklmnopqrstuvwxyz',
+      upper: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ',
+      numbers: '0123456789',
+      symbols: '!@#$%^&*()-_=+[]{}|;:,.<>?/~`'
+    };
+
+    // Elements
+    const lengthEl = document.getElementById('length');
+    const lengthValEl = document.getElementById('length-val');
+    const generateBtn = document.getElementById('generate');
+    const passwordEl = document.getElementById('password');
+    const copyBtn = document.getElementById('copy');
+    const meter = document.getElementById('strength-meter');
+    const strengthText = document.getElementById('strength-text');
+
+    // Option checkboxes
+    const lowerEl = document.getElementById('lower');
+    const upperEl = document.getElementById('upper');
+    const numbersEl = document.getElementById('numbers');
+    const symbolsEl = document.getElementById('symbols');
+
+    // Update displayed length
+    lengthEl.addEventListener('input', () => {
+      lengthValEl.textContent = lengthEl.value;
+    });
+
+    // Generate password
+    function generatePassword() {
+      const length = Number(lengthEl.value);
+      let charPool = '';
+      if (lowerEl.checked) charPool += SETS.lower;
+      if (upperEl.checked) charPool += SETS.upper;
+      if (numbersEl.checked) charPool += SETS.numbers;
+      if (symbolsEl.checked) charPool += SETS.symbols;
+
+      if (!charPool) {
+        passwordEl.textContent = 'Select at least one character set.';
+        updateStrength(0, length);
+        return;
+      }
+
+      // Use crypto.getRandomValues for secure randomness when available
+      const array = new Uint32Array(length);
+      window.crypto && crypto.getRandomValues(array);
+
+      let pwd = '';
+      for (let i = 0; i < length; i++) {
+        const idx = (array[i] || Math.floor(Math.random() * 1e9)) % charPool.length;
+        pwd += charPool.charAt(idx);
+      }
+
+      passwordEl.textContent = pwd;
+      updateStrength(estimateStrength(charPool.length, length), length);
+    }
+
+    // Estimate strength: simple entropy approximation
+    // entropy = log2(poolSize) * length
+    // Map entropy to 0..4
+    function estimateStrength(poolSize, length) {
+      const entropy = Math.log2(poolSize) * length;
+      // thresholds (bits): <28 very weak, 28-40 weak, 40-60 good, 60-80 strong, 80+ excellent
+      if (entropy < 28) return 0;
+      if (entropy < 40) return 1;
+      if (entropy < 60) return 2;
+      if (entropy < 80) return 3;
+      return 4;
+    }
+
+    function updateStrength(score, length) {
+      meter.max = 4;
+      meter.value = score;
+      let text = '—';
+      if (score === 0) {
+        text = 'Very weak';
+        meter.style.background = '';
+      } else if (score === 1) {
+        text = 'Weak';
+      } else if (score === 2) {
+        text = 'Good';
+      } else if (score === 3) {
+        text = 'Strong';
+      } else if (score === 4) {
+        text = 'Excellent';
+      }
+      strengthText.textContent = `Strength: ${text} (${length} chars)`;
+    }
+
+    // Copy to clipboard
+    async function copyPassword() {
+      const pwd = passwordEl.textContent;
+      if (!pwd || pwd === '—' || pwd.startsWith('Select at least')) return;
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          await navigator.clipboard.writeText(pwd);
+        } else {
+          // fallback
+          const ta = document.createElement('textarea');
+          ta.value = pwd;
+          document.body.appendChild(ta);
+          ta.select();
+          document.execCommand('copy');
+          ta.remove();
+        }
+        copyBtn.textContent = 'Copied';
+        setTimeout(() => (copyBtn.textContent = 'Copy'), 1500);
+      } catch (e) {
+        alert('Copy failed — select and copy manually.');
+      }
+    }
+
+    // Event bindings
+    generateBtn.addEventListener('click', generatePassword);
+    copyBtn.addEventListener('click', copyPassword);
+
+    // Generate initial password on load
+    window.addEventListener('load', () => {
+      generatePassword();
+    });
+
+    // Allow pressing Enter while focused on password to copy
+    passwordEl.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') copyPassword();
+    });
+  </script>
+</body>
+</html>
